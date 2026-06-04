@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THE CODE GAME</title>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(180deg, #141726, #1f2340);
+  color: white;
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.menu-container {
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+  text-align: center;
+}
+
+.game-title {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  font-size: 14px;
+  opacity: 0.8;
+  margin-bottom: 24px;
+}
+
+.menu-card {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 16px;
+  padding: 24px 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.btn {
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.btn:hover { transform: scale(1.02); }
+
+.btn-primary {
+  background: #ffb347;
+  color: #2b1b0f;
+  box-shadow: 0 6px 16px rgba(255, 179, 71, 0.5);
+}
+
+.btn-secondary {
+  background: #2f3555;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.small-text {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 18px;
+}
+
+.version {
+  font-size: 10px;
+  opacity: 0.5;
+  margin-top: 4px;
+}
+
+#gameCanvas {
+  display: none;
+  background: #5c94fc;
+  border-top: 4px solid #111;
+}
+</style>
+</head>
+
+<body>
+
+<div class="menu-container" id="menu">
+  <div class="game-title">THE CODE GAME</div>
+  <div class="subtitle">Pixel platformer adventure</div>
+
+  <div class="menu-card">
+    <div class="menu-buttons">
+      <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+      <button class="btn btn-secondary" onclick="showOptions()">Options</button>
+      <button class="btn btn-secondary" onclick="showCredits()">Credits</button>
+    </div>
+
+    <div class="small-text">Tap “Start Game” για να συνεχίσεις</div>
+    <div class="version">v0.9 – Smooth Jump & Hitbox</div>
+  </div>
+</div>
+
+<canvas id="gameCanvas" width="1000" height="500"></canvas>
+
+<script>
+/* ================= SETUP ================= */
+
+const menu = document.getElementById("menu");
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const WORLD_WIDTH = 4000;
+let gameStarted = false;
+const gravity = 0.2; // πιο αργή πτώση
+const keys = {};
+let cameraX = 0;
+
+/* ================= LOAD SPRITES ================= */
+
+const spriteIdle = new Image();
+spriteIdle.src = "normal position.png";
+
+const spriteRun1 = new Image();
+spriteRun1.src = "run position 1.png";
+
+const spriteRun2 = new Image();
+spriteRun2.src = "run position2.png";
+
+const spriteJump = new Image();
+spriteJump.src = "jump position.png";
+
+const spriteFire = new Image();
+spriteFire.src = "fire position.png";
+
+/* ================= PLAYER ================= */
+
+const player = {
+  x: 100,
+  y: 300,
+
+  width: 110,   // sprite size
+  height: 110,
+
+  // hitbox μικρότερο και στο κέντρο
+  hitW: 70,
+  hitH: 85,
+  hitOffsetX: 20,
+  hitOffsetY: 20,
+
+  speed: 3,
+  velocityY: 0,
+  jumping: false,
+
+  currentSprite: spriteIdle,
+  frameTimer: 0,
+  runFrame: 0,
+  firing: false
+};
+
+/* ================= PLATFORMS ================= */
+
+const platforms = [
+  { x: 0, y: 420, width: 4000, height: 80 },
+  { x: 300, y: 330, width: 120, height: 20 },
+  { x: 520, y: 270, width: 120, height: 20 },
+  { x: 800, y: 220, width: 120, height: 20 },
+  { x: 1100, y: 340, width: 220, height: 20 },
+  { x: 1500, y: 260, width: 200, height: 20 },
+  { x: 1900, y: 200, width: 150, height: 20 },
+  { x: 2300, y: 300, width: 220, height: 20 },
+  { x: 2700, y: 250, width: 180, height: 20 },
+  { x: 3100, y: 180, width: 200, height: 20 }
+];
+
+/* ================= CONTROLS ================= */
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+/* FIRE WITH LEFT CLICK */
+canvas.addEventListener("mousedown", () => {
+  player.firing = true;
+  player.currentSprite = spriteFire;
+
+  setTimeout(() => {
+    player.firing = false;
+  }, 150);
+});
+
+/* ================= MENU ================= */
+
+function startGame() {
+  menu.style.display = "none";
+  canvas.style.display = "block";
+  gameStarted = true;
+  gameLoop();
+}
+
+function showOptions() { alert("Options coming soon."); }
+
+function showCredits() {
+  alert(`THE CODE GAME\nCreated by:\nStavros\nBasilis\nDimitris\nKirios Panagiotis`);
+}
+
+/* ================= UPDATE ================= */
+
+function update() {
+
+  /* MOVE LEFT */
+  if (keys["ArrowLeft"]) player.x -= player.speed;
+
+  /* MOVE RIGHT */
+  if (keys["ArrowRight"]) player.x += player.speed;
+
+  /* JUMP */
+  if ((keys[" "] || keys["ArrowUp"]) && !player.jumping) {
+    player.velocityY = -7; // πιο αργό, πιο floaty άλμα
+    player.jumping = true;
+  }
+
+  /* GRAVITY */
+  player.velocityY += gravity;
+  player.y += player.velocityY;
+
+  /* PLATFORM COLLISION (με hitbox στο κέντρο) */
+  let onGround = false;
+
+  const hitLeft = player.x + player.hitOffsetX;
+  const hitRight = hitLeft + player.hitW;
+  const hitTop = player.y + player.hitOffsetY;
+  const hitBottom = hitTop + player.hitH;
+
+  for (let p of platforms) {
+    if (
+      hitRight > p.x &&
+      hitLeft < p.x + p.width &&
+      hitBottom > p.y &&
+      hitBottom < p.y + p.height + 15 &&
+      player.velocityY >= 0
+    ) {
+      // προσγειώνεται πάνω στην πλατφόρμα
+      const newHitBottom = p.y;
+      const newHitTop = newHitBottom - player.hitH;
+      player.y = newHitTop - player.hitOffsetY;
+
+      player.velocityY = 0;
+      player.jumping = false;
+      onGround = true;
+    }
+  }
+
+  if (!onGround) player.jumping = true;
+
+  /* CAMERA */
+  cameraX = player.x - 200;
+  if (cameraX < 0) cameraX = 0;
+
+  /* ANIMATION LOGIC */
+  if (player.firing) {
+    player.currentSprite = spriteFire;
+    return;
+  }
+
+  if (player.jumping) {
+    player.currentSprite = spriteJump;
+    return;
+  }
+
+  if (keys["ArrowLeft"] || keys["ArrowRight"]) {
+    player.frameTimer++;
+    if (player.frameTimer > 30) { // πιο αργό animation
+      player.runFrame = (player.runFrame + 1) % 2;
+      player.frameTimer = 0;
+    }
+    player.currentSprite = player.runFrame === 0 ? spriteRun1 : spriteRun2;
+  } else {
+    player.currentSprite = spriteIdle;
+  }
+}
+
+/* ================= DRAW ================= */
+
+function draw() {
+  ctx.fillStyle = "#5c94fc";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "white";
+  ctx.fillRect(200 - cameraX * 0.3, 80, 90, 30);
+  ctx.fillRect(600 - cameraX * 0.3, 120, 120, 30);
+
+  ctx.fillStyle = "#654321";
+  for (let p of platforms) {
+    ctx.fillRect(p.x - cameraX, p.y, p.width, p.height);
+  }
+
+  ctx.drawImage(
+    player.currentSprite,
+    player.x - cameraX,
+    player.y,
+    player.width,
+    player.height
+  );
+
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("THE CODE GAME", 20, 30);
+}
+
+/* ================= GAME LOOP ================= */
+
+function gameLoop() {
+  if (!gameStarted) return;
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+</script>
+
+</body>
+</html>
