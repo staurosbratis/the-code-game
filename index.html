@@ -265,7 +265,7 @@ let currentLevel = 1;
 let gameStarted = false;
 let gameOver = false;
 let gameWon = false;
-const gravity = 0.35;
+const gravity = 0.28;
 const keys = {};
 let cameraX = 0;
 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -286,7 +286,7 @@ function resetPlayer(){
     width:110, height:110,
     hitW:70, hitH:85,
     hitOffsetX:20, hitOffsetY:20,
-    speed:7,
+    speed:5,
     velocityY:0,
     jumping:false,
     currentSprite:spriteIdle,
@@ -971,12 +971,28 @@ function drawEndScreen(title,subtitle){
   ctx.textAlign = "left";
 }
 /* ================= GAME LOOP ================= */
-function gameLoop(){
+const TARGET_FPS = 60;
+const FRAME_TIME = 1000 / TARGET_FPS;
+
+let lastFrameTime = 0;
+
+function gameLoop(timestamp){
+
   if(!gameStarted) return;
+
+  if(timestamp - lastFrameTime < FRAME_TIME){
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  lastFrameTime = timestamp;
+
   update();
   draw();
+
   requestAnimationFrame(gameLoop);
 }
+
 </script>
 </body>
 </html>
